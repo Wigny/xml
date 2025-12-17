@@ -1,0 +1,2 @@
+defmodule XML do
+end
