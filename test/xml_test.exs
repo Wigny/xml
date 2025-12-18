@@ -43,4 +43,15 @@ defmodule XMLTest do
     assert to_string(xml["//year/text()"]) == "2005200520032003"
     assert to_string(xml["//year"]["text()"]) == "2005200520032003"
   end
+
+  test "enumerable" do
+    xml = XML.from_document(@document)
+
+    assert Enum.map(xml["book"], &to_string(&1["year/text()"])) == [
+             "2005",
+             "2005",
+             "2003",
+             "2003"
+           ]
+  end
 end

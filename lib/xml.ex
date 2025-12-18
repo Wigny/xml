@@ -59,6 +59,27 @@ defmodule XML do
     defdelegate to_string(xml), to: @for
   end
 
+  defimpl Enumerable do
+    def count(%XML{document: doc}) do
+      {:ok, doc |> List.wrap() |> length()}
+    end
+
+    def member?(_xml, _element) do
+      {:error, __MODULE__}
+    end
+
+    def slice(_xml) do
+      {:error, __MODULE__}
+    end
+
+    def reduce(%XML{document: doc}, acc, fun) do
+      Enumerable.List.reduce(List.wrap(doc), acc, fn node, acc ->
+        xml = struct!(__MODULE__, document: node)
+        fun.(xml, acc)
+      end)
+    end
+  end
+
   # defimpl Inspect do
   #   import Inspect.Algebra
 
