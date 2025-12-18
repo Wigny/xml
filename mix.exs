@@ -12,12 +12,12 @@ defmodule XML.MixProject do
   end
 
   def application do
-    [applications: [:xmerl]]
+    [
+      extra_applications: [:xmerl]
+    ]
   end
 
   defp deps do
-    [
-      {:git_snapshot, "~> 0.1"}
-    ]
+    []
   end
 end

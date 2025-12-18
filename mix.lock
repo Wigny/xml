@@ -1,3 +1,0 @@
-%{
-  "git_snapshot": {:hex, :git_snapshot, "0.1.6", "2857f5a3c0e329ff8ed26bbaa314fc3d8170a0b050d6094c4ccd8967f144a051", [:mix], [{:image, "~> 0.62.0", [hex: :image, repo: "hexpm", optional: true]}], "hexpm", "8cd1b30f0ac888eb38b6aeb56216d6eec11eb7c75c4b1efc7bce1a141e35ca71"},
-}
