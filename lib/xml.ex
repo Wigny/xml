@@ -1,13 +1,14 @@
 defmodule XML do
-  # import Record
+  import Record
 
   @opaque document :: :xmerl.element()
   @type t :: %__MODULE__{document: document}
 
   defstruct [:document]
 
+  # defrecord :xmlDocument, extract(:xmlDocument, from_lib: "xmerl/include/xmerl.hrl")
   # defrecord :xmlElement, extract(:xmlElement, from_lib: "xmerl/include/xmerl.hrl")
-  # defrecord :xmlAttribute, extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
+  defrecord :xmlAttribute, extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
   # defrecord :xmlText, extract(:xmlText, from_lib: "xmerl/include/xmerl.hrl")
   # defrecord :xmlObj, extract(:xmlObj, from_lib: "xmerl/include/xmerl.hrl")
 
@@ -21,25 +22,41 @@ defmodule XML do
   end
 
   def to_document(%__MODULE__{} = xml) do
-    :xmerl.export_content(List.wrap(xml.document), :xmerl_xml)
+    :xmerl.export_element(xml.document, :xmerl_xml)
   end
 
-  def query(%__MODULE__{} = xml, xpath) when is_binary(xpath) do
-    document = :xmerl_xpath.string(to_charlist(xpath), xml.document)
-    struct!(__MODULE__, document: document)
+  def to_string(%__MODULE__{document: nodes}) when is_list(nodes) do
+    nodes
+    |> Enum.map(fn
+      xmlAttribute(value: value) -> value
+      node -> :xmerl.export_simple_element(node, :xmerl_xml)
+    end)
+    |> IO.iodata_to_binary()
+  end
+
+  def to_string(%__MODULE__{} = xml) do
+    IO.iodata_to_binary(to_document(xml))
+  end
+
+  def search(%__MODULE__{document: document}, xpath) when is_binary(xpath) do
+    results =
+      document
+      |> List.wrap()
+      |> Enum.flat_map(fn node -> :xmerl_xpath.string(to_charlist(xpath), node) end)
+
+    case results do
+      [] -> nil
+      nodes -> struct!(__MODULE__, document: nodes)
+    end
   end
 
   @doc false
   def fetch(%__MODULE__{} = xml, xpath) when is_binary(xpath) do
-    {:ok, query(xml, xpath)}
+    {:ok, search(xml, xpath)}
   end
 
   defimpl String.Chars do
-    def to_string(xml) do
-      xml
-      |> XML.to_document()
-      |> IO.iodata_to_binary()
-    end
+    defdelegate to_string(xml), to: @for
   end
 
   # defimpl Inspect do

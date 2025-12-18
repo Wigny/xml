@@ -4,7 +4,7 @@ defmodule XMLTest do
 
   doctest XML
 
-  @document String.trim(File.read!("test/support/breakfast_menu.xml"))
+  @document String.trim(File.read!("test/support/bookstore.xml"))
 
   test "sigil_XML/2" do
     assert %XML{} = ~XML"""
@@ -36,7 +36,11 @@ defmodule XMLTest do
   test "access" do
     xml = XML.from_document(@document)
 
-    assert to_string(xml["food[2]/name"]) == "Strawberry Belgian Waffles"
-    # assert (XML.to_document(xml["food[2]/name/text()"])) == "Strawberry Belgian Waffles"
+    assert to_string(xml["book[2]/title"]) == "<title lang=\"en\">Harry Potter</title>"
+    assert to_string(xml["book[2]"]["title"]) == "<title lang=\"en\">Harry Potter</title>"
+    assert to_string(xml["book[2]/title/text()"]) == "Harry Potter"
+    assert to_string(xml["book[2]/title/@lang"]) == "en"
+    assert to_string(xml["//year/text()"]) == "2005200520032003"
+    assert to_string(xml["//year"]["text()"]) == "2005200520032003"
   end
 end
