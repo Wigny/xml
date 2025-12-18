@@ -18,10 +18,6 @@ defmodule XML do
     struct!(__MODULE__, nodes: [document])
   end
 
-  def to_string(%__MODULE__{} = xml) do
-    IO.iodata_to_binary(to_iodata(xml))
-  end
-
   @spec to_iodata(xml :: t) :: iodata
   def to_iodata(%__MODULE__{nodes: nodes}) do
     Enum.map(nodes, fn
@@ -44,7 +40,7 @@ defmodule XML do
   end
 
   defimpl String.Chars do
-    defdelegate to_string(xml), to: @for
+    def to_string(xml), do: IO.iodata_to_binary(XML.to_iodata(xml))
   end
 
   defimpl Enumerable do
@@ -62,7 +58,7 @@ defmodule XML do
 
     def reduce(xml, acc, fun) do
       Enumerable.List.reduce(xml.nodes, acc, fn node, acc ->
-        xml = struct!(@for, nodes: [node])
+        xml = struct!(XML, nodes: [node])
         fun.(xml, acc)
       end)
     end
