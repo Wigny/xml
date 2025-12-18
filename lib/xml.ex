@@ -6,7 +6,6 @@ defmodule XML do
 
   defstruct [:nodes]
 
-  defrecord :xmlElement, extract(:xmlElement, from_lib: "xmerl/include/xmerl.hrl")
   defrecord :xmlAttribute, extract(:xmlAttribute, from_lib: "xmerl/include/xmerl.hrl")
 
   defmacro sigil_XML({:<<>>, _meta, [content]}, []) do
@@ -15,8 +14,8 @@ defmodule XML do
 
   @spec from_document(content :: binary) :: t
   def from_document(content) when is_binary(content) do
-    {nodes, ~c""} = :xmerl_scan.string(to_charlist(content), quiet: true)
-    struct!(__MODULE__, nodes: [nodes])
+    {document, ~c""} = :xmerl_scan.string(to_charlist(content), quiet: true)
+    struct!(__MODULE__, nodes: [document])
   end
 
   def to_string(%__MODULE__{} = xml) do
