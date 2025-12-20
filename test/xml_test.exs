@@ -1,83 +1,55 @@
 defmodule XMLTest do
   use ExUnit.Case
 
-  import Record
   import XML, only: [sigil_XML: 2]
 
   doctest XML
 
-  @document String.trim(File.read!("test/support/bookstore.xml"))
-
-  test "sigil_XML/2" do
-    assert %XML{nodes: [element]} = ~XML"""
-           <note>
-             <to>Tove</to>
-             <from>Jani</from>
-             <heading>Reminder</heading>
-             <body>Don't forget me this weekend!</body>
-           </note>
-           """
-
-    assert is_record(element, :xmlElement)
-  end
+  @xml ~XML"""
+  <doc>
+    <points>
+      <point x="1" y="2"/>
+      <point x="3" y="4"/>
+      <point x="5" y="6"/>
+    </points>
+    <strings>
+      <string>foo</string>
+      <string>bar</string>
+    </strings>
+  </doc>
+  """
 
   test "from_document/1" do
-    assert %XML{nodes: [element]} = XML.from_document(@document)
-    assert is_record(element, :xmlElement)
+    assert %XML{content: [node]} = XML.from_document("<string>foo</string>")
+    assert node == {:string, [], [~c"foo"]}
   end
 
   test "to_iodata/1" do
-    xml = XML.from_document(@document)
-
-    assert IO.iodata_to_binary(XML.to_iodata(xml)) == @document
-
-    assert IO.iodata_to_binary(XML.to_iodata(xml["//title[@lang='en']"])) ==
-             ~s'<title lang="en">Everyday Italian</title>' <>
-               ~s'<title lang="en">Harry Potter</title>' <>
-               ~s'<title lang="en">XQuery Kick Start</title>' <>
-               ~s'<title lang="en">Learning XML</title>'
+    assert iodata = XML.to_iodata(~XML[<point x="1" y="2"/>])
+    assert IO.iodata_to_binary(iodata) == ~s[<point x="1" y="2"/>]
   end
 
   test "to_string/1" do
-    xml = XML.from_document(@document)
-
-    assert to_string(xml) == @document
-    assert to_string(xml["book[last()]/title"]) == ~s'<title lang="en">Learning XML</title>'
-    assert to_string(xml["book[last()]/title/text()"]) == "Learning XML"
-    assert to_string(xml["book[last()]/title/@lang"]) == "en"
+    assert to_string(~XML"<string>bar</string>") == "<string>bar</string>"
   end
 
-  test "search/2" do
-    xml = XML.from_document(@document)
-
-    assert %XML{nodes: [node]} = XML.search(xml, "/bookstore/book[last() - 1]")
-    assert is_record(node, :xmlElement)
-
-    assert %XML{nodes: [node]} = XML.search(xml, "/bookstore/book[last()]/title/@lang")
-    assert is_record(node, :xmlAttribute)
-
-    assert %XML{nodes: nodes} = XML.search(xml, "//title[@lang]")
-    assert length(nodes) == 4
-    assert Enum.all?(nodes, &is_record(&1, :xmlElement))
-
-    assert %XML{nodes: nodes} = XML.search(xml, "/bookstore/book[price>35.00]/title")
-    assert length(nodes) == 2
-    assert Enum.all?(nodes, &is_record(&1, :xmlElement))
+  test "xpath/2" do
+    assert XML.xpath(@xml, "//point[1]") == ~XML[<point x="1" y="2"/>]
+    assert XML.xpath(@xml, "//string[last()]/text()") == "bar"
+    assert XML.xpath(@xml, "//point[@x > 2]/@y") == ["4", "6"]
   end
 
   test "access" do
-    xml = XML.from_document(@document)
-
-    assert to_string(xml["book[4]/title"]) == ~s'<title lang="en">Learning XML</title>'
-    assert to_string(xml["book[4]"]["title"]) == ~s'<title lang="en">Learning XML</title>'
-    assert to_string(xml["book[4]/title/text()"]) == "Learning XML"
-    assert to_string(xml["//year/text()"]) == "2005200520032003"
-    assert to_string(xml["//year[3]"]["text()"]) == "2003"
+    assert @xml["points/point[3]"] == ~XML[<point x="5" y="6"/>]
+    assert @xml["points"]["point[3]"] == ~XML[<point x="5" y="6"/>]
+    assert @xml["points/point[3]/@x"] == "5"
+    assert @xml["//string/text()"] == ["foo", "bar"]
+    assert Enum.map(@xml["//point"], & &1["@x"]) == ["1", "3", "5"]
+    assert @xml["//point[2]"]["@y"] == "4"
   end
 
-  test "enumerable" do
-    xml = XML.from_document(@document)
-
-    assert Enum.map(xml["book"], &to_string(&1["year/text()"])) == ~w[2005 2005 2003 2003]
+  test "inspect" do
+    xml = ~XML[<string>bar</string>]
+    assert inspect(xml) == ~s'~XML[<string>bar</string>]'
   end
 end
