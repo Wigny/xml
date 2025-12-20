@@ -19,6 +19,11 @@ defmodule XMLTest do
   </doc>
   """
 
+  test "new/1" do
+    assert XML.new([{:points, [], [{:point, %{x: 1, y: 2}, nil}]}]) ==
+             ~XML'<points><point x="1" y="2"></point></points>'
+  end
+
   test "from_document/1" do
     assert %XML{content: [node]} = XML.from_document("<string>foo</string>")
     assert node == {:string, [], [~c"foo"]}

@@ -54,6 +54,48 @@ defmodule XML do
   end
 
   @doc ~s|
+  Generates a new XML struct for the given content.
+
+  ## Examples
+
+      iex> XML.new({:book, [], [{:title, [], 1984}, {:author, [], "George Orwell"}]})
+      iex> ~XML[<book><title>1984</title><author>George Orwell</author></book>]
+  |
+  @spec new(content :: list(element) | element) :: t
+        when element:
+               {atom, list(element) | term}
+               | {atom, Enumerable.t({atom, term}), list(element) | term}
+  def new(content) do
+    struct!(__MODULE__, content: Enum.map(List.wrap(content), &tree_element/1))
+  end
+
+  defp tree_element({tag, attributes, content}) do
+    attributes = Keyword.new(attributes, fn {k, v} -> {k, encode_content(v)} end)
+    {tag, attributes, element_content(content)}
+  end
+
+  defp tree_element({tag, content}) do
+    {tag, element_content(content)}
+  end
+
+  defguardp is_charlist(value) when is_list(value) and is_integer(hd(value))
+
+  defp element_content(value) do
+    cond do
+      is_nil(value) -> ~c""
+      is_charlist(value) -> value
+      is_list(value) -> Enum.map(value, &tree_element/1)
+      :otherwise -> encode_content(value)
+    end
+  end
+
+  defp encode_content(term) do
+    term
+    |> to_string()
+    |> to_charlist()
+  end
+
+  @doc ~s|
   Converts an XML struct to iodata.
 
   ## Examples
