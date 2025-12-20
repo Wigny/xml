@@ -20,13 +20,13 @@ defmodule XMLTest do
   """
 
   test "new/1" do
-    assert XML.new([{:points, [], [{:point, %{x: 1, y: 2}, nil}]}]) ==
+    assert XML.new({:points, [], [{:point, %{x: 1, y: 2}, nil}]}) ==
              ~XML'<points><point x="1" y="2"></point></points>'
   end
 
   test "from_document/1" do
-    assert %XML{content: [node]} = XML.from_document("<string>foo</string>")
-    assert node == {:string, [], [~c"foo"]}
+    assert %XML{element: element} = XML.from_document("<string>foo</string>")
+    assert element == {:string, [], [~c"foo"]}
   end
 
   test "to_iodata/1" do
