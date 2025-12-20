@@ -1,4 +1,17 @@
 defmodule XML do
+  @moduledoc ~s|
+  A helper that makes easy working with XML.
+
+  ## Examples
+
+      iex> xml = XML.from_document("<person><name>Alice</name><age>30</age></person>")
+      iex> XML.xpath(xml, "//name/text()")
+      "Alice"
+      iex> XML.xpath(xml, "//age/text()")
+      "30"
+
+  |
+
   import Record
 
   @opaque content :: [:xmerl.simple_element()]
@@ -10,10 +23,29 @@ defmodule XML do
     defrecordp name, fields
   end
 
+  @doc ~s|
+  Handles the sigil `~XML` for creating XML structs.
+
+  ## Examples
+
+      iex> ~XML[<hello>world</hello>]
+      ~XML[<hello>world</hello>]
+
+  |
   defmacro sigil_XML({:<<>>, _meta, [content]}, []) do
     quote do: XML.from_document(unquote(content))
   end
 
+  @doc ~s|
+  Parses an XML document from a binary string.
+
+  ## Examples
+
+      iex> xml = XML.from_document("<book><title>1984</title><author>George Orwell</author></book>")
+      iex> XML.xpath(xml, "//title/text()")
+      "1984"
+
+  |
   @spec from_document(content :: binary) :: t
   def from_document(content) when is_binary(content) do
     {element, ~c""} = :xmerl_scan.string(to_charlist(content), quiet: true, space: :normalize)
@@ -21,11 +53,40 @@ defmodule XML do
     struct!(__MODULE__, content: to_tree(element))
   end
 
+  @doc ~s|
+  Converts an XML struct to iodata.
+
+  ## Examples
+
+      iex> xml = XML.from_document("<greeting>Hello</greeting>")
+      iex> IO.iodata_to_binary(XML.to_iodata(xml))
+      "<greeting>Hello</greeting>"
+
+  |
   @spec to_iodata(xml :: t) :: iodata
   def to_iodata(%__MODULE__{content: content}) do
     :xmerl.export_simple_content(content, :xmerl_xml_indent)
   end
 
+  @doc ~s|
+  Queries an XML document using XPath.
+
+  ## Examples
+
+      iex> xml = ~XML"""
+      ...> <catalog>
+      ...>   <book id="1"><title>1984</title><price>15.99</price></book>
+      ...>   <book id="2"><title>Brave New World</title><price>14.99</price></book>
+      ...> </catalog>
+      ...> """
+      iex> XML.xpath(xml, "//title/text()")
+      ["1984", "Brave New World"]
+      iex> XML.xpath(xml, "//book[@id='1']")
+      ~XML[<book id="1"><title>1984</title><price>15.99</price></book>]
+      iex> XML.xpath(xml, "//book[@id='1']/@id")
+      "1"
+
+  |
   @spec xpath(xml :: t, path :: binary) :: node | value | [node | value]
         when node: t, value: binary
   def xpath(%__MODULE__{content: content}, path) when is_binary(path) do
