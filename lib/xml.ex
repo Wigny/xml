@@ -67,33 +67,7 @@ defmodule XML do
                {atom, list(element) | term}
                | {atom, Enumerable.t({atom, term}), list(element) | term}
   def new(element) do
-    struct!(__MODULE__, element: normalize_element(element))
-  end
-
-  defp normalize_element({tag, attributes, element}) do
-    attributes = Keyword.new(attributes, fn {k, v} -> {k, encode_element(v)} end)
-    {tag, attributes, element_element(element)}
-  end
-
-  defp normalize_element({tag, element}) do
-    {tag, element_element(element)}
-  end
-
-  defguardp is_charlist(value) when is_list(value) and is_integer(hd(value))
-
-  defp element_element(value) do
-    cond do
-      is_nil(value) -> ~c""
-      is_charlist(value) -> value
-      is_list(value) -> Enum.map(value, &normalize_element/1)
-      :otherwise -> encode_element(value)
-    end
-  end
-
-  defp encode_element(term) do
-    term
-    |> to_string()
-    |> to_charlist()
+    struct!(__MODULE__, element: XML.Encoder.element(element))
   end
 
   @doc ~s|
