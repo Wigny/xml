@@ -4,24 +4,16 @@ defmodule XML do
 
   ## Examples
 
-      iex> xml = XML.from_document("<person><name>Alice</name><age>30</age></person>")
-      iex> XML.xpath(xml, "//name/text()")
+      iex> person = XML.parse("<person><name>Alice</name><age>30</age></person>")
+      iex> XML.text(person["name"])
       "Alice"
-      iex> XML.xpath(xml, "//age/text()")
-      "30"
 
   |
 
-  import Record
-
-  @opaque element :: :xmerl.simple_element()
+  @type element :: {tag :: binary, [{attribute :: binary, value :: binary}], [element | binary]}
   @type t :: %__MODULE__{element: element}
 
   defstruct [:element]
-
-  for {name, fields} <- extract_all(from_lib: "xmerl/include/xmerl.hrl") do
-    defrecordp name, fields
-  end
 
   @doc ~s|
   Handles the sigil `~XML` for creating XML structs.
@@ -33,7 +25,7 @@ defmodule XML do
 
   |
   defmacro sigil_XML({:<<>>, _meta, [element]}, []) do
-    quote do: XML.from_document(unquote(element))
+    quote do: XML.parse(unquote(element))
   end
 
   @doc ~s|
@@ -41,33 +33,27 @@ defmodule XML do
 
   ## Examples
 
-      iex> xml = XML.from_document("<book><title>1984</title><author>George Orwell</author></book>")
-      iex> XML.xpath(xml, "//title/text()")
-      "1984"
+      iex> XML.parse("<hello>world</hello>")
+      ~XML[<hello>world</hello>]
 
   |
-  @spec from_document(element :: binary) :: t
-  def from_document(element) when is_binary(element) do
-    {element, ~c""} = :xmerl_scan.string(to_charlist(element), quiet: true, space: :normalize)
-
-    struct!(__MODULE__, element: to_tree(element))
+  @spec parse(content :: binary) :: t
+  def parse(content) when is_binary(content) do
+    struct!(__MODULE__, element: XML.Parser.parse(content))
   end
 
   @doc ~s|
-  Generates a new XML struct for the given element.
+  Generates a new XML struct with the given element tree.
 
   ## Examples
 
-      iex> XML.new({:book, [], [{:title, [], 1984}, {:author, [], "George Orwell"}]})
-      iex> ~XML[<book><title>1984</title><author>George Orwell</author></book>]
+      iex> XML.new({"person", [], [{"name", [], ["Alice"]}, {"age", [], [30]}]})
+      ~XML[<person><name>Alice</name><age>30</age></person>]
 
   |
-  @spec new(element) :: t
-        when element:
-               {atom, list(element) | term}
-               | {atom, Enumerable.t({atom, term}), list(element) | term}
+  @spec new(element :: term) :: t
   def new(element) do
-    struct!(__MODULE__, element: XML.Encoder.element(element))
+    struct!(__MODULE__, element: XML.Builder.element(element))
   end
 
   @doc ~s|
@@ -75,63 +61,85 @@ defmodule XML do
 
   ## Examples
 
-      iex> xml = XML.from_document("<greeting>Hello</greeting>")
-      iex> IO.iodata_to_binary(XML.to_iodata(xml))
+      iex> iodata = XML.to_iodata(~XML"<greeting>Hello</greeting>")
+      iex> IO.iodata_to_binary(iodata)
       "<greeting>Hello</greeting>"
 
   |
   @spec to_iodata(xml :: t) :: iodata
   def to_iodata(%__MODULE__{element: element}) do
-    :xmerl.export_simple_element(element, :xmerl_xml_indent)
+    encode_element(element)
+  end
+
+  defp encode_element({tag, attributes, []}) do
+    [?<, to_string(tag), Enum.map(attributes, &encode_attributes/1), ?/, ?>]
+  end
+
+  defp encode_element({tag, attributes, content}) do
+    encoded_tag = to_string(tag)
+    encoded_attributes = Enum.map(attributes, &encode_attributes/1)
+    encoded_content = Enum.map(content, &encode_element/1)
+    [?<, encoded_tag, encoded_attributes, ?>, encoded_content, ?<, ?/, encoded_tag, ?>]
+  end
+
+  defp encode_element(content) when is_binary(content) do
+    content
+  end
+
+  defp encode_attributes({name, value}) do
+    [?\s, to_string(name), ?=, ?", to_string(value), ?"]
   end
 
   @doc ~s|
-  Queries an XML document using XPath.
+  Gets the value of an attribute from an XML element.
 
   ## Examples
 
-      iex> xml = ~XML"""
-      ...> <catalog>
-      ...>   <book id="1"><title>1984</title><price>15.99</price></book>
-      ...>   <book id="2"><title>Brave New World</title><price>14.99</price></book>
-      ...> </catalog>
-      ...> """
-      iex> XML.xpath(xml, "//title/text()")
-      ["1984", "Brave New World"]
-      iex> XML.xpath(xml, "//book[@id='1']")
-      ~XML[<book id="1"><title>1984</title><price>15.99</price></book>]
-      iex> XML.xpath(xml, "//book[@id='1']/@id")
-      "1"
+      iex> XML.attribute(~XML[<person name="Alice" age="30"/>], "name")
+      "Alice"
 
   |
-  @spec xpath(xml :: t, path :: binary) :: nil | result | [result] when result: binary | t
-  def xpath(%__MODULE__{element: element}, path) when is_binary(path) do
-    result =
-      path
-      |> String.to_charlist()
-      |> :xmerl_xpath.string(:xmerl_lib.normalize_element(element))
-      |> Enum.map(fn
-        binary when is_binary(binary) -> binary
-        xmlAttribute(value: value) -> to_string(value)
-        xmlText(value: value) -> to_string(value)
-        xmlElement() = element -> struct!(__MODULE__, element: to_tree(element))
-      end)
+  @spec attribute(xml :: t, name :: binary) :: binary
+  def attribute(%__MODULE__{element: {_tag, attribute, _content}}, name) do
+    with {^name, value} <- List.keyfind(attribute, name, 0), do: value
+  end
 
-    case result do
+  @doc ~s|
+  Extracts text content from an XML element.
+
+  ## Examples
+
+      iex> XML.text(~XML[<greeting>Hello</greeting>])
+      "Hello"
+
+      iex> XML.text(~XML[<person><name>Alice</name><name>Bob</name></person>])
+      ["Alice", "Bob"]
+
+      iex> XML.text(~XML[<empty/>])
+      nil
+
+  |
+  @spec text(xml :: t) :: nil | binary | [binary]
+  def text(%__MODULE__{element: element}) do
+    case List.flatten(element_text(element)) do
       [] -> nil
-      [value] -> value
-      values -> values
+      [text] -> text
+      texts -> texts
     end
   end
 
-  @doc false
-  def fetch(%__MODULE__{} = xml, path) when is_binary(path) do
-    {:ok, xpath(xml, path)}
-  end
+  defp element_text({_tag, _attribute, content}), do: Enum.map(content, &element_text/1)
+  defp element_text(content), do: content
 
-  defp to_tree(element) do
-    [element] = :xmerl_lib.remove_whitespace([element])
-    :xmerl_lib.simplify_element(element)
+  @doc false
+  def fetch(%__MODULE__{} = xml, tag) when is_binary(tag) do
+    {_tag, _attr, content} = xml.element
+
+    case Enum.filter(content, &match?({^tag, _attr, _content}, &1)) do
+      [] -> :error
+      [element] -> {:ok, new(element)}
+      elements -> {:ok, Enum.map(elements, &new/1)}
+    end
   end
 
   defimpl String.Chars do
