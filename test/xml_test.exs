@@ -32,6 +32,11 @@ defmodule XMLTest do
 
   test "to_string" do
     assert to_string(~XML"<string>bar</string>") == "<string>bar</string>"
+
+    xml = XML.new({:message, [author: ~s[Bob & "Friends"]], [~s[<tag> & "quote" & 'apos']]})
+
+    assert to_string(xml) ==
+             ~s[<message author="Bob &amp; &quot;Friends&quot;">&lt;tag&gt; &amp; &quot;quote&quot; &amp; &apos;apos&apos;</message>]
   end
 
   test "access" do

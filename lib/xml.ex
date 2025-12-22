@@ -83,11 +83,20 @@ defmodule XML do
   end
 
   defp encode_element(content) when is_binary(content) do
-    content
+    escape(content)
   end
 
   defp encode_attributes({name, value}) do
-    [?\s, to_string(name), ?=, ?", to_string(value), ?"]
+    [?\s, to_string(name), ?=, ?", escape(to_string(value)), ?"]
+  end
+
+  defp escape(string) when is_binary(string) do
+    string
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
+    |> String.replace("'", "&apos;")
   end
 
   @doc ~s|
