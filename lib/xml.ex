@@ -10,7 +10,7 @@ defmodule XML do
 
   |
 
-  @type element :: {tag :: binary, [{attribute :: binary, value :: binary}], [element | binary]}
+  @type element :: {tag :: term, [{attribute :: term, value :: term}], [element | term]}
   @type t :: %__MODULE__{element: element}
 
   defstruct [:element]
@@ -47,13 +47,13 @@ defmodule XML do
 
   ## Examples
 
-      iex> XML.new({"person", [], [{"name", [], ["Alice"]}, {"age", [], [30]}]})
+      iex> XML.new({"person", [], [{"name", [], ["Alice"]}, {"age", [], ["30"]}]})
       ~XML[<person><name>Alice</name><age>30</age></person>]
 
   |
-  @spec new(element :: term) :: t
-  def new(element) do
-    struct!(__MODULE__, element: XML.Builder.element(element))
+  @spec new(element) :: t
+  def new(element) when is_tuple(element) do
+    struct!(__MODULE__, element: element)
   end
 
   @doc ~s|
@@ -68,35 +68,7 @@ defmodule XML do
   |
   @spec to_iodata(xml :: t) :: iodata
   def to_iodata(%__MODULE__{element: element}) do
-    encode_element(element)
-  end
-
-  defp encode_element({tag, attributes, []}) do
-    [?<, to_string(tag), Enum.map(attributes, &encode_attributes/1), ?/, ?>]
-  end
-
-  defp encode_element({tag, attributes, content}) do
-    encoded_tag = to_string(tag)
-    encoded_attributes = Enum.map(attributes, &encode_attributes/1)
-    encoded_content = Enum.map(content, &encode_element/1)
-    [?<, encoded_tag, encoded_attributes, ?>, encoded_content, ?<, ?/, encoded_tag, ?>]
-  end
-
-  defp encode_element(content) when is_binary(content) do
-    escape(content)
-  end
-
-  defp encode_attributes({name, value}) do
-    [?\s, to_string(name), ?=, ?", escape(to_string(value)), ?"]
-  end
-
-  defp escape(string) when is_binary(string) do
-    string
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
-    |> String.replace("'", "&apos;")
+    XML.Encoder.encode(element)
   end
 
   @doc ~s|

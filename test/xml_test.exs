@@ -6,7 +6,8 @@ defmodule XMLTest do
   doctest XML
 
   test "new/1" do
-    assert XML.new({:point, [x: 1, y: 2], ["x"]}) == ~XML'<point x="1" y="2">x</point>'
+    assert XML.new({"point", [{"x", "1"}, {"y", "2"}], ["x"]}) ==
+             ~XML'<point x="1" y="2">x</point>'
   end
 
   test "parse/1" do
@@ -65,54 +66,5 @@ defmodule XMLTest do
   test "inspect" do
     xml = ~XML[<string>bar</string>]
     assert inspect(xml) == ~s'~XML[<string>bar</string>]'
-  end
-
-  defmodule Person do
-    @derive {XML.Builder, {:person, [:gender], [:name, :email]}}
-
-    defstruct [:name, :gender, :email]
-  end
-
-  test "protocol deriving" do
-    john = %Person{gender: :male, name: "John", email: "john@example.com"}
-
-    assert XML.new(john) == ~XML'''
-           <person gender="male">
-             <name>John</name>
-             <email>john@example.com</email>
-           </person>
-           '''
-  end
-
-  defimpl XML.Builder, for: URI do
-    def element(uri), do: to_string(uri)
-  end
-
-  defimpl XML.Builder, for: DateTime do
-    def element(datetime), do: to_string(DateTime.to_unix(datetime))
-  end
-
-  test "protocol impl" do
-    assert XML.new({
-             :logs,
-             [lang: :en],
-             [
-               {
-                 :log,
-                 [datetime: ~U[2025-12-21T00:00:00Z]],
-                 [
-                   {:uri, [], [URI.new!("localhost")]},
-                   {:user, [], ["wigny"]}
-                 ]
-               }
-             ]
-           }) == ~XML'''
-           <logs lang="en">
-             <log datetime="1766275200">
-               <uri>localhost</uri>
-               <user>wigny</user>
-             </log>
-           </logs>
-           '''
   end
 end
