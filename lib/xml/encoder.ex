@@ -13,9 +13,9 @@ defprotocol XML.Encoder do
         defstruct [:id, :name, :email]
       end
 
-      iex> iodata = XML.Encoder.encode(%Person{id: 1, name: "Alice", email: "alice@example.com"})
+      iex> iodata = XML.Encoder.encode(%Person{id: 1, name: "Alice", email: "alice@example.com"}, indent: 2)
       iex> IO.iodata_to_binary(iodata)
-      ~s(<person id="1"><name>Alice</name><email>alice@example.com</email></person>)
+      ~s(<person id="1">\\n  <name>\\n    Alice\\n  </name>\\n  <email>\\n    alice@example.com\\n  </email>\\n</person>\\n)
 
   ## Implementing
 
@@ -24,7 +24,7 @@ defprotocol XML.Encoder do
   For leaf values (strings, numbers, etc):
 
       defimpl XML.Encoder, for: Duration do
-        defdelegate encode(duration), to: Duration, as: :to_iso8601
+        def encode(duration, _opts), do: Duration.to_iso8601(duration)
       end
 
       iex> XML.Encoder.encode(Duration.new!(minute: 5, second: 30))
@@ -33,38 +33,50 @@ defprotocol XML.Encoder do
   For tree structures with nested elements, build element tuples and encode them:
 
       defimpl XML.Encoder, for: BlogPost do
-        def encode(post) do
+        def encode(post, opts) do
           article = XML.element(:article, [id: post.id], [
             XML.element(:title, [], [post.title]),
             XML.element(:author, [], [post.author]),
             XML.element(:body, [], [post.body])
           ])
 
-          XML.Encoder.encode(article)
+          XML.Encoder.encode(article, opts)
         end
       end
 
   Or use the tuple structure directly:
 
       defimpl XML.Encoder, for: BlogPost do
-        def encode(post) do
-          XML.Encoder.encode({:article, [id: post.id], [
+        def encode(post, opts) do
+          article = {:article, [id: post.id], [
             {:title, [], [post.title]},
             {:author, [], [post.author]},
             {:body, [], [post.body]}
-          ]})
+          ]}
+
+          XML.Encoder.encode(article, opts)
         end
       end
 
   """
 
-  @spec encode(value :: term) :: iodata
-  def encode(value)
+  @doc """
+  Encodes a value into XML-formatted iodata.
+
+  ## Parameters
+
+    * `value` - The term to encode
+    * `opts` - Formatting options (default: `[]`)
+      * `:indent` - Number of spaces used when indenting
+
+  """
+  @spec encode(value :: term, opts :: keyword) :: iodata
+  def encode(value, opts \\ [])
 
   defmacro __deriving__(module, {tag, attributes, content}) do
     quote do
       defimpl XML.Encoder, for: unquote(module) do
-        def encode(struct) do
+        def encode(struct, opts) do
           element =
             XML.element(
               unquote(tag),
@@ -74,7 +86,7 @@ defprotocol XML.Encoder do
               end)
             )
 
-          XML.Encoder.encode(element)
+          XML.Encoder.encode(element, opts)
         end
       end
     end
@@ -82,15 +94,31 @@ defprotocol XML.Encoder do
 end
 
 defimpl XML.Encoder, for: Tuple do
-  def encode({tag, attributes, []}) do
-    [?<, to_string(tag), encode_attributes(attributes), ?/, ?>]
+  import XML.IOData
+
+  def encode({tag, attributes, []}, _opts) do
+    [?<, to_string(tag), encode_attributes(attributes), ?\s, ?/, ?>]
   end
 
-  def encode({tag, attributes, content}) when is_list(content) do
+  def encode({tag, attributes, content}, opts) when is_list(content) do
     encoded_tag = to_string(tag)
     encoded_attributes = encode_attributes(attributes)
-    encoded_content = XML.Encoder.List.encode(content)
-    [?<, encoded_tag, encoded_attributes, ?>, encoded_content, ?<, ?/, encoded_tag, ?>]
+    encoded_content = XML.Encoder.List.encode(content, update_in(opts[:depth], &((&1 || 0) + 1)))
+
+    [
+      ?<,
+      encoded_tag,
+      encoded_attributes,
+      ?>,
+      linebreak(opts),
+      encoded_content,
+      indent(opts),
+      ?<,
+      ?/,
+      encoded_tag,
+      ?>,
+      trailing_linebreak(opts)
+    ]
   end
 
   defp encode_attributes([]) do
@@ -98,45 +126,44 @@ defimpl XML.Encoder, for: Tuple do
   end
 
   defp encode_attributes([{name, value} | attributes]) do
-    [?\s, to_string(name), ?=, ?", XML.Encoder.encode(value), ?" | encode_attributes(attributes)]
+    [?\s, to_string(name), ?=, ?", escape(to_string(value)), ?" | encode_attributes(attributes)]
   end
 end
 
 defimpl XML.Encoder, for: Map do
-  def encode(value) do
-    encode_entries(Map.to_list(value))
+  def encode(value, opts) do
+    encode_entries(Map.to_list(value), opts)
   end
 
-  defp encode_entries([]) do
+  defp encode_entries([], _opts) do
     []
   end
 
-  defp encode_entries([{key, value} | rest]) do
-    [XML.Encoder.encode({key, [], List.wrap(value)}) | encode_entries(rest)]
+  defp encode_entries([{key, value} | rest], opts) do
+    [XML.Encoder.encode({key, [], List.wrap(value)}, opts) | encode_entries(rest, opts)]
   end
 end
 
 defimpl XML.Encoder, for: List do
-  def encode([]), do: []
-  def encode([head | tail]), do: [XML.Encoder.encode(head) | encode(tail)]
+  import XML.IOData
+
+  def encode([], _opts), do: []
+
+  def encode([head | tail], opts) do
+    [indent(opts), XML.Encoder.encode(head, opts), linebreak(opts) | encode(tail, opts)]
+  end
 end
 
 defimpl XML.Encoder, for: [Integer, Float] do
-  def encode(value), do: to_string(value)
+  def encode(value, _opts), do: to_string(value)
 end
 
 defimpl XML.Encoder, for: Atom do
-  def encode(value), do: XML.Encoder.encode(to_string(value))
+  def encode(value, opts), do: XML.Encoder.encode(to_string(value), opts)
 end
 
 defimpl XML.Encoder, for: BitString do
-  def encode(value) when is_binary(value), do: escape(value, [])
+  import XML.IOData
 
-  defp escape(<<?<, rest::binary>>, acc), do: escape(rest, [acc, "&lt;"])
-  defp escape(<<?>, rest::binary>>, acc), do: escape(rest, [acc, "&gt;"])
-  defp escape(<<?&, rest::binary>>, acc), do: escape(rest, [acc, "&amp;"])
-  defp escape(<<?", rest::binary>>, acc), do: escape(rest, [acc, "&quot;"])
-  defp escape(<<?', rest::binary>>, acc), do: escape(rest, [acc, "&apos;"])
-  defp escape(<<char, rest::binary>>, acc), do: escape(rest, [acc, char])
-  defp escape(<<>>, acc), do: acc
+  def encode(value, _opts) when is_binary(value), do: escape(value)
 end

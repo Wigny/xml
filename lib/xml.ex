@@ -84,16 +84,24 @@ defmodule XML do
   @doc ~s|
   Converts an XML struct to iodata.
 
+  ## Options
+
+    * `:indent` - Number of spaces used when indenting (default: 0, no formatting)
+
   ## Examples
 
       iex> iodata = XML.to_iodata(~XML"<greeting>Hello</greeting>")
       iex> IO.iodata_to_binary(iodata)
       "<greeting>Hello</greeting>"
 
+      iex> iodata = XML.to_iodata(~XML"<person><name>Alice</name><age>30</age></person>", indent: 2)
+      iex> IO.iodata_to_binary(iodata)
+      "<person>\\n  <name>\\n    Alice\\n  </name>\\n  <age>\\n    30\\n  </age>\\n</person>\\n"
+
   |
-  @spec to_iodata(xml :: t) :: iodata
-  def to_iodata(%__MODULE__{element: element}) when is_element(element) do
-    XML.Encoder.encode(element)
+  @spec to_iodata(xml :: t, opts :: keyword) :: iodata
+  def to_iodata(%__MODULE__{element: element}, opts \\ []) when is_element(element) do
+    XML.Encoder.encode(element, opts)
   end
 
   @doc ~s|
@@ -135,7 +143,7 @@ defmodule XML do
   end
 
   defp element_text({_tag, _attribute, content}), do: Enum.map(content, &element_text/1)
-  defp element_text(content), do: to_string(content)
+  defp element_text(content), do: String.trim(to_string(content))
 
   @doc false
   def fetch(%__MODULE__{} = xml, tag) when is_binary(tag) do

@@ -17,7 +17,7 @@ defmodule XMLTest do
 
   test "to_iodata/1" do
     assert iodata = XML.to_iodata(~XML'<point x="1" y="2"/>')
-    assert IO.iodata_to_binary(iodata) == ~s[<point x="1" y="2"/>]
+    assert IO.iodata_to_binary(iodata) == ~s[<point x="1" y="2" />]
   end
 
   test "attribute/1" do
@@ -28,7 +28,16 @@ defmodule XMLTest do
   test "text/1" do
     assert XML.text(~XML'<point x="1" y="2"/>') == nil
     assert XML.text(~XML"<string>bar</string>") == "bar"
-    assert XML.text(~XML"<root><a>foo</a><b>bar</b></root>") == ~w[foo bar]
+
+    assert XML.text(~XML"""
+           <root>
+             foo
+             <child>
+               bar
+             </child>
+           </root>
+           """) == ~w[foo bar]
+
     person = XML.new({:person, [], [{:name, [], ["Alice"]}, {:age, [], [30]}]})
     assert XML.text(person) == ~w[Alice 30]
     assert XML.text(XML.new({:msg, [], [">hello"]})) == ">hello"

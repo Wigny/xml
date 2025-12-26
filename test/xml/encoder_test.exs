@@ -10,7 +10,7 @@ defmodule XML.EncoderTest do
   end
 
   defimpl XML.Encoder, for: Duration do
-    defdelegate encode(duration), to: Duration, as: :to_iso8601
+    def encode(duration, _opts), do: Duration.to_iso8601(duration)
   end
 
   doctest Encoder
@@ -35,5 +35,69 @@ defmodule XML.EncoderTest do
 
     assert IO.iodata_to_binary(XML.Encoder.encode({:tag, [attr: 1], [:content]})) ==
              ~s'<tag attr="1">content</tag>'
+  end
+
+  test "formatted" do
+    iodata = XML.Encoder.encode(XML.element("name", [], ["John"]), indent: 2)
+
+    assert IO.iodata_to_binary(iodata) == """
+           <name>
+             John
+           </name>
+           """
+
+    iodata =
+      XML.Encoder.encode(
+        XML.element("person", [], [
+          XML.element("name", [], ["John"]),
+          XML.element("email", [], ["john@example.com"])
+        ]),
+        indent: 2
+      )
+
+    assert IO.iodata_to_binary(iodata) == """
+           <person>
+             <name>
+               John
+             </name>
+             <email>
+               john@example.com
+             </email>
+           </person>
+           """
+
+    iodata =
+      XML.Encoder.encode(
+        XML.element("person", [], [
+          "John",
+          XML.element("email", [], ["john@example.com"])
+        ]),
+        indent: 2
+      )
+
+    assert IO.iodata_to_binary(iodata) == """
+           <person>
+             John
+             <email>
+               john@example.com
+             </email>
+           </person>
+           """
+
+    iodata =
+      XML.Encoder.encode(
+        XML.element("person", [], [
+          XML.element("name", [value: "John"], []),
+          XML.element("email", [value: "john@example.com"], [])
+        ]),
+        indent: 2
+      )
+
+    assert IO.iodata_to_binary(iodata) == """
+           <person>
+             <name value="John" />
+             <email value="john@example.com" />
+           </person>
+           """
   end
 end
