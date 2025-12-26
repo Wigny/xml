@@ -42,6 +42,10 @@ defmodule XML do
     struct!(__MODULE__, element: XML.Parser.parse(content))
   end
 
+  defguardp is_element(element)
+            when is_tuple(element) and tuple_size(element) == 3 and
+                   is_list(elem(element, 1)) and is_list(elem(element, 2))
+
   @doc ~s|
   Generates a new XML struct with the given element tree.
 
@@ -52,8 +56,29 @@ defmodule XML do
 
   |
   @spec new(element) :: t
-  def new(element) when is_tuple(element) do
+  def new(element) when is_element(element) do
     struct!(__MODULE__, element: element)
+  end
+
+  @doc ~s|
+  Helper for building XML element tuples with tag name, attributes, and content.
+
+  Returns an element tree that can be composed with other `element/3` calls or encoded with
+  `XML.Encoder.encode/1`.
+
+  ## Examples
+
+      iex> element = XML.element("person", [{"id", "1"}], [
+      ...>   XML.element("name", [], ["Alice"]),
+      ...>   XML.element("age", [], ["30"])
+      ...> ])
+      iex> XML.new(element)
+      ~XML[<person id="1"><name>Alice</name><age>30</age></person>]
+
+  |
+  @spec element(tag :: term, attributes :: list, content :: list) :: element
+  def element(tag, attributes, content) when is_list(attributes) and is_list(content) do
+    {tag, attributes, content}
   end
 
   @doc ~s|
@@ -67,7 +92,7 @@ defmodule XML do
 
   |
   @spec to_iodata(xml :: t) :: iodata
-  def to_iodata(%__MODULE__{element: element}) do
+  def to_iodata(%__MODULE__{element: element}) when is_element(element) do
     XML.Encoder.encode(element)
   end
 
@@ -101,7 +126,7 @@ defmodule XML do
 
   |
   @spec text(xml :: t) :: nil | binary | [binary]
-  def text(%__MODULE__{element: element}) do
+  def text(%__MODULE__{element: element}) when is_element(element) do
     case List.flatten(element_text(element)) do
       [] -> nil
       [text] -> text
@@ -110,7 +135,7 @@ defmodule XML do
   end
 
   defp element_text({_tag, _attribute, content}), do: Enum.map(content, &element_text/1)
-  defp element_text(content), do: content
+  defp element_text(content), do: to_string(content)
 
   @doc false
   def fetch(%__MODULE__{} = xml, tag) when is_binary(tag) do
@@ -162,8 +187,8 @@ defmodule XML do
       )
     end
 
-    defp inspect_element(charlist, opts) do
-      color_doc(to_string(charlist), :string, opts)
+    defp inspect_element(content, opts) do
+      color_doc(to_string(content), :string, opts)
     end
   end
 end

@@ -25,10 +25,13 @@ defmodule XMLTest do
     assert XML.attribute(~XML'<point y="2"/>', "x") == nil
   end
 
-  test "text/2" do
+  test "text/1" do
     assert XML.text(~XML'<point x="1" y="2"/>') == nil
     assert XML.text(~XML"<string>bar</string>") == "bar"
     assert XML.text(~XML"<root><a>foo</a><b>bar</b></root>") == ~w[foo bar]
+    person = XML.new({:person, [], [{:name, [], ["Alice"]}, {:age, [], [30]}]})
+    assert XML.text(person) == ~w[Alice 30]
+    assert XML.text(XML.new({:msg, [], [">hello"]})) == ">hello"
   end
 
   test "to_string" do

@@ -19,7 +19,9 @@ defprotocol XML.Encoder do
 
   ## Implementing
 
-  Custom types can implement the protocol for specialized encoding:
+  Custom types can implement the protocol for specialized encoding.
+
+  For leaf values (strings, numbers, etc):
 
       defimpl XML.Encoder, for: Duration do
         defdelegate encode(duration), to: Duration, as: :to_iso8601
@@ -27,6 +29,32 @@ defprotocol XML.Encoder do
 
       iex> XML.Encoder.encode(Duration.new!(minute: 5, second: 30))
       "PT5M30S"
+
+  For tree structures with nested elements, build element tuples and encode them:
+
+      defimpl XML.Encoder, for: BlogPost do
+        def encode(post) do
+          article = XML.element(:article, [id: post.id], [
+            XML.element(:title, [], [post.title]),
+            XML.element(:author, [], [post.author]),
+            XML.element(:body, [], [post.body])
+          ])
+
+          XML.Encoder.encode(article)
+        end
+      end
+
+  Or use the tuple structure directly:
+
+      defimpl XML.Encoder, for: BlogPost do
+        def encode(post) do
+          XML.Encoder.encode({:article, [id: post.id], [
+            {:title, [], [post.title]},
+            {:author, [], [post.author]},
+            {:body, [], [post.body]}
+          ]})
+        end
+      end
 
   """
 
@@ -37,11 +65,16 @@ defprotocol XML.Encoder do
     quote do
       defimpl XML.Encoder, for: unquote(module) do
         def encode(struct) do
-          XML.Encoder.encode({
-            unquote(tag),
-            Map.take(struct, unquote(attributes)),
-            Enum.map(Map.take(struct, unquote(content)), fn {k, v} -> {k, [], [v]} end)
-          })
+          element =
+            XML.element(
+              unquote(tag),
+              Map.to_list(Map.take(struct, unquote(attributes))),
+              Enum.map(Map.take(struct, unquote(content)), fn {k, v} ->
+                XML.element(k, [], [v])
+              end)
+            )
+
+          XML.Encoder.encode(element)
         end
       end
     end
