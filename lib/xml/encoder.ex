@@ -50,29 +50,42 @@ end
 
 defimpl XML.Encoder, for: Tuple do
   def encode({tag, attributes, []}) do
-    [?<, to_string(tag), Enum.map(attributes, &encode_attribute/1), ?/, ?>]
+    [?<, to_string(tag), encode_attributes(attributes), ?/, ?>]
   end
 
   def encode({tag, attributes, content}) when is_list(content) do
     encoded_tag = to_string(tag)
-    encoded_attributes = Enum.map(attributes, &encode_attribute/1)
+    encoded_attributes = encode_attributes(attributes)
     encoded_content = XML.Encoder.List.encode(content)
     [?<, encoded_tag, encoded_attributes, ?>, encoded_content, ?<, ?/, encoded_tag, ?>]
   end
 
-  defp encode_attribute({name, value}) do
-    [?\s, to_string(name), ?=, ?", XML.Encoder.encode(value), ?"]
+  defp encode_attributes([]) do
+    []
+  end
+
+  defp encode_attributes([{name, value} | attributes]) do
+    [?\s, to_string(name), ?=, ?", XML.Encoder.encode(value), ?" | encode_attributes(attributes)]
   end
 end
 
 defimpl XML.Encoder, for: Map do
   def encode(value) do
-    Enum.map(value, fn {key, value} -> XML.Encoder.encode({key, [], List.wrap(value)}) end)
+    encode_entries(Map.to_list(value))
+  end
+
+  defp encode_entries([]) do
+    []
+  end
+
+  defp encode_entries([{key, value} | rest]) do
+    [XML.Encoder.encode({key, [], List.wrap(value)}) | encode_entries(rest)]
   end
 end
 
 defimpl XML.Encoder, for: List do
-  def encode(value), do: Enum.map(value, &XML.Encoder.encode/1)
+  def encode([]), do: []
+  def encode([head | tail]), do: [XML.Encoder.encode(head) | encode(tail)]
 end
 
 defimpl XML.Encoder, for: [Integer, Float] do
