@@ -43,6 +43,14 @@ defmodule XML.Parser do
     [append_child(current_element, to_string(chars)) | ancestor_elements]
   end
 
+  defp handle_parse_event({:internalEntityDecl, _name, _value}, _location, _state) do
+    throw({:fatal_error, ~c"Forbid internal entity expansion"})
+  end
+
+  defp handle_parse_event({:externalEntityDecl, _name, _public_id, _system_id}, _location, _state) do
+    throw({:fatal_error, ~c"Forbid external entity expansion"})
+  end
+
   defp handle_parse_event(_event, _arg, state) do
     state
   end
